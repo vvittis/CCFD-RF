@@ -1,7 +1,8 @@
 package com.vvittis
 
 import org.apache.log4j._
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{SparkSession, functions}
+import org.apache.spark.sql.functions.from_csv
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
 
@@ -19,10 +20,10 @@ object WordCount {
 
     import spark.implicits._
 
-//    val retailDataSchema = new StructType()
-//      .add("InvoiceNo", IntegerType)
-//      .add("StockCode", IntegerType)
-//      .add("Country", StringType)
+        val retailDataSchema = new StructType()
+          .add("InvoiceNo", IntegerType)
+          .add("Quantity", IntegerType)
+          .add("Country", StringType)
 
     // Create DataFrame representing the stream of input lines from connection to localhost:9999
     val lines = spark
@@ -30,31 +31,29 @@ object WordCount {
       .format("kafka")
       //      .format("org.apache.spark.sql.kafka010.KafkaSourceProvider")
       .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("subscribe", "topic1")
+      .option("subscribe", "topic2")
       .option("startingOffsets", "earliest")
       .load()
-      .selectExpr("CAST(value AS STRING)","CAST(key AS STRING)")
-      .as[(String,String)]
+      .selectExpr("CAST(value AS STRING)")
+      .select(functions.from_json($"value", retailDataSchema).as("data"))
+      lines.printSchema()
+
 
 
     // Generate running word count
-    val wordCounts = lines.groupBy("value").count()
+    val wordCounts = lines
+//      .select("data.Country")
+      .groupBy("data.Country").sum("data.Quantity")
+
 
     val query = wordCounts.writeStream
-      .outputMode("complete")
+      .outputMode("update")
       .format("console")
       .start()
 
     query.awaitTermination()
 
 
-    //    val filteredData = streamingData.filter("Country = 'United Kingdom'")
-//    val query = filteredData.writeStream
-//      .format("console")
-//      .queryName("filteredByCountry")
-//      .outputMode(OutputMode.Update())
-//      .start()
-//
-//    query.awaitTermination()
+
   }
 }

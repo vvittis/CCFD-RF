@@ -1,15 +1,22 @@
 package com.tzimos
 
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types._
 
 object StructuredStreaming {
   def main(args: Array[String]): Unit = {
-    val spark  = SparkSession.builder().appName("Spark Structured Streaming").master("local[*]").getOrCreate()
+    val spark  = SparkSession.builder()
+      .appName("Spark Structured Streaming")
+      .master("local[*]")
+      .getOrCreate()
+
+
     spark.sparkContext.setLogLevel("ERROR")
 
 
     val retailDataSchema = new StructType()
+      .add("Null",IntegerType)
       .add("InvoiceNo", IntegerType)
       .add("StockCode", IntegerType)
       .add("Description", StringType)
@@ -24,32 +31,32 @@ object StructuredStreaming {
       .readStream
       // .option("maxFilesPerTrigger","2")
       .schema(retailDataSchema)
-      .csv("/Users/talentorigin/temp_working")
+      .csv("datasets/temp_working")
 
-    // val filteredData = streamingData.filter("Country = 'United Kingdom'")
-    /*Just a Query*/
-    // val query = filteredData.writeStream
-    //   .format("console")
-    //   .queryName("filteredByCountry")
-    //   .outputMode(OutputMode.Update())
-    //   .start()
+//     val filteredData = streamingData.filter("Country = 'United Kingdom'")
+//    /*Just a Query*/
+//     val query = filteredData.writeStream
+//       .format("console")
+//       .queryName("filteredByCountry")
+//       .outputMode(OutputMode.Update())
+//       .start()
+//
+//     query.awaitTermination()
 
-    // query.awaitTermination()
+    /*Basic Transformation*/
 
-/*Basic Tranformation*/
+     val filteredData = streamingData
+       .filter("Country = 'United Kingdom'")
+       .where("Quantity > 1")
+       .drop("CustomerId")
+       .select("InvoiceNo","StockCode", "Description","Quantity")
+       .writeStream
+       .queryName("SalesDetails")
+       .format("console")
+       .outputMode(OutputMode.Update())
+       .start()
 
-    // val filteredData = streamingData
-    //   .filter("Country = 'France'")
-    //   .where("Quantity > 1")
-    //   .drop("CustomerId")
-    //   .select("InvoiceNo","StockCode", "Description","Quantity")
-    //   .writeStream
-    //   .queryName("SalesDetails")
-    //   .format("console")
-    //   .outputMode(OutputMode.Update())
-    //   .start()
-
-    // filteredData.awaitTermination()
+     filteredData.awaitTermination()
 
 
     /*Basic Aggregations*/
