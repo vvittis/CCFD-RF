@@ -1,10 +1,10 @@
-package com.tzimos
+package com.examples
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types._
 
-object StructuredStreaming {
+object StructuredStreamingExamples {
   def main(args: Array[String]): Unit = {
     val spark  = SparkSession.builder()
       .appName("Spark Structured Streaming")
