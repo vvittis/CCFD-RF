@@ -4,7 +4,7 @@ import org.apache.log4j._
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions.from_csv
 import org.apache.spark.sql.streaming.OutputMode
-import org.apache.spark.sql.types.{IntegerType, StringType, StructType}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructType, TimestampType}
 import java.util.regex.Pattern
 import java.util.regex.Matcher
 import java.text.SimpleDateFormat
@@ -12,62 +12,30 @@ import java.util.Locale
 
 import org.apache.log4j._
 import org.apache.spark.sql.functions._
-
-
 import java.util.regex.Pattern
 import java.util.regex.Matcher
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+import com.code.Main.favoriteDonut
+
 object WordCount {
 
   case class LogEntry(ip: String, client: String, user: String, dateTime: String, request: String, status: String, bytes: String, referer: String, agent: String)
 
-  val logPattern = apacheLogPattern()
-  val datePattern = Pattern.compile("\\[(.*?) .+]")
 
-  // Function to convert Apache log times to what Spark/SQL expects
-  def parseDateField(field: String): Option[String] = {
-
-    val dateMatcher = datePattern.matcher(field)
-    if (dateMatcher.find) {
-      val dateString = dateMatcher.group(1)
-      val dateFormat = new SimpleDateFormat("dd/MMM/yyyy:HH:mm:ss", Locale.ENGLISH)
-      val date = (dateFormat.parse(dateString))
-      val timestamp = new java.sql.Timestamp(date.getTime());
-      return Option(timestamp.toString())
-    } else {
-      None
-    }
+  def mapFunction(line: String): (String) = {
+    var fields = line.split(",")
+    //    return (favoriteDonut(), Entry(fields(0).trim, fields(1).trim, fields(2).trim, fields(3).trim, fields(4).trim))
+    return (fields(1).trim)
   }
 
   val retailDataSchema: StructType = new StructType()
     .add("InvoiceNo", IntegerType)
     .add("Quantity", IntegerType)
     .add("Country", StringType)
+    .add("A", TimestampType)
 
-
-  // Convert a raw line of Apache access log data to a structured LogEntry object (or None if line is corrupt)
-  def parseLog(x: Row): Option[LogEntry] = {
-
-    val matcher: Matcher = logPattern.matcher(x.getString(0));
-    if (matcher.matches()) {
-      val timeString = matcher.group(4)
-      return Some(LogEntry(
-        matcher.group(1),
-        matcher.group(2),
-        matcher.group(3),
-        parseDateField(matcher.group(4)).getOrElse(""),
-        matcher.group(5),
-        matcher.group(6),
-        matcher.group(7),
-        matcher.group(8),
-        matcher.group(9)
-      ))
-    } else {
-      return None
-    }
-  }
 
   def main(args: Array[String]): Unit = {
 
@@ -82,19 +50,29 @@ object WordCount {
 
     import spark.implicits._ // << add this
     // Create DataFrame representing the stream of input lines from connection to localhost:9999
+//    val lines = spark
+//      .readStream
+//      .format("kafka")
+//      //.format("org.apache.spark.sql.kafka010.KafkaSourceProvider")
+//      .option("kafka.bootstrap.servers", "localhost:9092")
+//      .option("subscribe", "topic2")
+//      .option("startingOffsets", "earliest")
+//      .load()
+//      .selectExpr("CAST(value AS STRING)")
+//      .select(functions.from_json($"value", retailDataSchema).as("data"))
+//    lines.printSchema()
+
     val lines = spark
       .readStream
       .format("kafka")
-      //.format("org.apache.spark.sql.kafka010.KafkaSourceProvider")
       .option("kafka.bootstrap.servers", "localhost:9092")
       .option("subscribe", "topic2")
       .option("startingOffsets", "earliest")
       .load()
       .selectExpr("CAST(value AS STRING)")
-      .select(functions.from_json($"value", retailDataSchema).as("data"))
+      .select(functions.schema_of_csv($"value").as("data"))
+
     lines.printSchema()
-
-
     // Generate running word count
     val wordCounts = lines
       //      .select("data.Country")

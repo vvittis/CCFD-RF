@@ -4,13 +4,17 @@ import org.apache.spark.sql._
 import org.apache.log4j._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, Trigger}
+import org.apache.spark.sql.types.{IntegerType, StringType, StructType, TimestampType}
 
 object Main {
 
+  case class Entry(random_number: Int, Id: Int, Name: String, Age: Int, Friends: Int)
 
-  case class Entry(timeStamp: String, Outlook: String, Temperature: String, Humidity: String, Class: String)
 
-  class Entru
+  case class StoredInfo(Counter: Int)
+
+  case class UpdatedInfo(random_number: Int, Counter: Int, expired: Boolean)
 
   def favoriteDonut(): Int = {
     val start = 0
@@ -19,36 +23,18 @@ object Main {
     return start + rnd.nextInt((end - start) + 1)
   }
 
-
   def mapFunction(line: String): (Int, String) = {
     var fields = line.split(",")
     //    return (favoriteDonut(), Entry(fields(0).trim, fields(1).trim, fields(2).trim, fields(3).trim, fields(4).trim))
     return (favoriteDonut(), fields(1).trim)
   }
 
-  def sumFunc(accum: String, n: String): String = {
-    println("First" + accum)
-    println("Second" + n)
-    return ""
+  object Entry {
+    def apply(rawStr: String): Entry = {
+      val fields = rawStr.split(",")
+      Entry(77, fields(0).toInt, fields(1), fields(2).toInt, fields(3).toInt)
+    }
   }
-
-
-  def mapFunction1(entry: Entry): Int = {
-
-    //    var BaggingNumber:Int  = node._1
-    //    var entry: Entry = node._2
-
-    var timeStamp: String = entry.timeStamp
-    var outlook: String = entry.Outlook
-    var temperature: String = entry.Temperature
-    var humidity: String = entry.Humidity
-    var classof: String = entry.Class
-
-    println("Hey Bill. I just received a Entry with " + timeStamp + " " + outlook + " " + temperature + " " + humidity + " " + classof + " ")
-    println("...and it feels awesome")
-    return 1
-  }
-
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession
@@ -65,67 +51,67 @@ object Main {
     val lines = spark
       .readStream
       .format("kafka")
-      //.format("org.apache.spark.sql.kafka010.KafkaSourceProvider")
       .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("subscribe", "topic22")
+      .option("subscribe", "topic2")
       .option("startingOffsets", "earliest")
-      .option("includeHeaders", "true")
       .load()
-      .selectExpr("CAST(value AS STRING)")
+
 
     lines.printSchema()
 
-    val byZipCode = (o: Entry) => o.Outlook
     /* STEP 1. Convert our raw text into a DataSet of Entry rows */
-    val structuredData = lines.as[String].map(mapFunction)
+    //    val structuredData = lines.selectExpr("CAST(value AS STRING)").as[String].map(mapFunction)
 
 
-      .groupByKey(byZipCode)
+    val entries: Dataset[Entry] = lines.selectExpr("CAST(value AS STRING)")
+      .map(r ⇒ Entry(r.getString(0)))
+
+    entries.printSchema()
+    val query1 = entries.writeStream
+      .format("console")
+      //      .outputMode("append")
+      .option("truncate", "false")
+      .start()
+    val entries_state = entries.groupByKey(x => x.random_number).mapGroupsWithState[StoredInfo, UpdatedInfo](GroupStateTimeout.ProcessingTimeTimeout) {
+
+      case (random_number: Int, entries: Iterator[Entry], state: GroupState[StoredInfo]) =>
+        if (state.hasTimedOut) {
+          val finalUpdate = UpdatedInfo(random_number, state.get.Counter, expired = true)
+//          state.remove()
+          finalUpdate
+        }
+        else {
+          var sum = 0
+          if (!state.exists) {
+            sum = 0
+          }
+          else {
+            sum = state.get.Counter
+          }
+
+          for (k <- entries) {
+            println("Random number " + random_number + "  Friends " + k.Friends)
+            sum = sum + k.Friends
+          }
+          state.update(StoredInfo(sum))
+          //          println("1 -> " + state.exists)
+          state.setTimeoutDuration("10 seconds")
+
+          UpdatedInfo(random_number, state.get.Counter, expired = false)
+        }
 
 
+    }
 
-
-
-
-
-//      .withColumnRenamed("_1", "key").withColumnRenamed("_2", "value")
-
-//      .withColumnRenamed("_1", "key")
-
-
-
-
-//      .withColumnRenamed("_2", "value")
-    //        structuredData.printSchema()
-    //        structuredData.writeStream
-    //          .format("console")
-    //          //      .outputMode("complete")
-    //          .option("truncate", "false")
-    //          .start()
-
-    //      .as[(Int,String)]
-//    val data1 = structuredData.as[(Int, String)].reduce((x, y) => (x + "   ", y + "  "))
-
-
-
-    structuredData.writeStream
-              .format("console")
-              //      .outputMode("complete")
-              .option("truncate", "false")
-              .start()
-              .awaitTermination()
-
-
-    //    val reducedData = structuredData.groupBy("value._2.Outlook").agg(count("value._1"))
-    //    reducedData
-    //      .writeStream
-    //      .format("console")
-    //      .outputMode("complete")
-    //      .option("truncate", "false")
-    //      .start()
-    //      .awaitTermination()
-
-
+    val query = entries_state
+      .writeStream
+      .format("console")
+      .outputMode("update")
+      .option("truncate", "false")
+      //      .trigger(Trigger.Continuous("1 second"))
+      .start()
+    query1.awaitTermination()
+    query.awaitTermination()
   }
 }
 
