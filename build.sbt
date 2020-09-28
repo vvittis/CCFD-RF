@@ -1,4 +1,4 @@
-name := "Spark"
+name := "CCFD_RF_Structured_Streaming"
 
 version := "0.1"
 
