@@ -32,9 +32,9 @@ object StructuredRandomForestAccumulator {
       .master("local[*]")
       .config("spark.sql.streaming.checkpointLocation", "file:///C:/checkpoint")
       .getOrCreate()
-
+//asdasd
     //spark.sparkContext.defaultParallelism
-
+  /*This is a change */
     // Create a stream of text files dumped into the fake directory
     val rawData = spark.readStream
       .format("kafka")
