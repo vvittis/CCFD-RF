@@ -40,13 +40,21 @@ object StructuredRandomForestAccumulator {
     // Use new SparkSession interface(checkpoint iff stateful operator is needed)
     //val conf = new SparkConf().setMaster("local[*]").setAppName("SparkStructuredStreamingExample")
     //Use config method of variable spark to set your configurations
-    val spark = SparkSession.builder().appName("SparkStructuredStreamingExample").master("local[*]")
-      .config("spark.sql.streaming.checkpointLocation", "file:///C:/checkpoint").getOrCreate()
+    val spark = SparkSession.builder()
+      .appName("SparkStructuredStreamingExample")
+      .master("local[*]")
+      .config("spark.sql.streaming.checkpointLocation", "file:///C:/checkpoint")
+      .getOrCreate()
 
     //spark.sparkContext.defaultParallelism
 
     // Create a stream of text files dumped into the fake directory
-    val rawData = spark.readStream.format("kafka").option("kafka.bootstrap.servers", "localhost:9092").option("subscribe", "testSource").option("startingOffsets", "earliest").load()
+    val rawData = spark.readStream
+      .format("kafka")
+      .option("kafka.bootstrap.servers", "localhost:9092")
+      .option("subscribe", "testSource")
+      .option("startingOffsets", "earliest")
+      .load()
       .selectExpr("CAST(value AS STRING)")
     //.option("includeHeaders", "true")
     //option("minPartitions",10)
@@ -90,7 +98,10 @@ object StructuredRandomForestAccumulator {
     import spark.implicits._
 
     // FlatMapGroupsWithState
-    val result = structuredData.repartition(2,col("randInt")).groupByKey(structuredData => structuredData.randInt).flatMapGroupsWithState[Node,OutputState](OutputMode.Append,GroupStateTimeout.ProcessingTimeTimeout){
+    val result = structuredData
+      .repartition(2,col("randInt"))
+      .groupByKey(structuredData => structuredData.randInt)
+      .flatMapGroupsWithState[Node,OutputState](OutputMode.Update,GroupStateTimeout.ProcessingTimeTimeout){
 
       case( randID: Int , data : Iterator[Data] , state:GroupState[Node]) =>
 
@@ -212,8 +223,23 @@ object StructuredRandomForestAccumulator {
     //val query = finalResult.writeStream.format("console").queryName("TestStatefulOperator").start()
 
     // Write on kafka topic-result
-    val kafkaResult = flatMapResult.map(flatMapResult => flatMapResult.keyTuple.toString.concat(",").concat(flatMapResult.res.toString).concat(",").concat(flatMapResult.timestamp.toString).concat(",").concat(flatMapResult.idT.toString)).toDF("value")
-    val query = kafkaResult.selectExpr("CAST(value AS STRING)").writeStream.outputMode("update").format("kafka").option("kafka.bootstrap.servers", "localhost:9092").option("topic", "result").queryName("TestStatefulOperator").start()
+    val kafkaResult = flatMapResult.map(flatMapResult => flatMapResult
+      .keyTuple
+      .toString.concat(",")
+      .concat(flatMapResult.res.toString)
+      .concat(",")
+      .concat(flatMapResult.timestamp.toString)
+      .concat(",")
+      .concat(flatMapResult.idT.toString))
+      .toDF("value")
+
+    val query = kafkaResult.selectExpr("CAST(value AS STRING)")
+      .writeStream.outputMode("update")
+      .format("kafka")
+      .option("kafka.bootstrap.servers", "localhost:9092")
+      .option("topic", "result")
+      .queryName("TestStatefulOperator")
+      .start()
 
     // Keep going until we're stopped
     query.awaitTermination()
