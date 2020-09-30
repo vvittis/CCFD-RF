@@ -1,35 +1,18 @@
-import java.io.Serializable
-import java.sql.Timestamp
-
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode, Trigger}
-import org.apache.spark.sql.{Column, Encoder, Encoders, KeyValueGroupedDataset, Row, SparkSession, functions}
-import org.apache.log4j._
-import java.util.UUID
-
-import org.apache.spark.util.random.PoissonSampler
+import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
+import org.apache.spark.sql.{Encoder, Row, SparkSession}
 import org.apache.commons.math3.distribution.PoissonDistribution
-import org.apache.spark.SparkConf
-import org.apache.spark.metrics.source.DoubleAccumulatorSource
-import org.apache.spark.sql.execution.streaming.{StreamingExecutionRelation, StreamingQueryWrapper}
-import org.apache.spark.sql.expressions.{Aggregator, MutableAggregationBuffer}
-import org.apache.spark.sql.functions._
-import org.apache.spark.sql.functions.{col, current_timestamp, monotonically_increasing_id, window}
-import org.apache.spark.sql.types.{DataType, StructType}
-
 import scala.collection.convert.ImplicitConversions.`collection AsScalaIterable`
 import scala.util.control.Breaks.{break, breakable}
 
-object StructuredRandomForestAccumulator {
+object StructuredRandomForestAccumulator{
 
   // Case class
-  case class Data(int1:Int, int2:Int, int3:Int, int4:Int, label:Int, randInt:Int, keyData:Double ,timestamp: Timestamp)
+  case class InputData(data:String,keyTuple:Int,idHT:Int)
 
-  case class OutputState(listID :List[Double],listRes :List[Int], listTimestamp: List[Timestamp], idHT:Int)
+  case class OutputState(listKeyTuple :List[Int],listRes :List[Int],idHT:Int)
 
-  case class Result(keyTuple:Double,res:Int,timestamp: Timestamp,idT:Int)
-
-  case class IntermediateStateAggr(var countF:Int, var countNF:Int)
+  case class Result(keyTuple:Int,res:Int,idT:Int)
 
 
   def main(args: Array[String]): Unit = {
@@ -38,8 +21,6 @@ object StructuredRandomForestAccumulator {
     Logger.getLogger("org").setLevel(Level.ERROR)
 
     // Use new SparkSession interface(checkpoint iff stateful operator is needed)
-    //val conf = new SparkConf().setMaster("local[*]").setAppName("SparkStructuredStreamingExample")
-    //Use config method of variable spark to set your configurations
     val spark = SparkSession.builder()
       .appName("SparkStructuredStreamingExample")
       .master("local[*]")
@@ -48,47 +29,33 @@ object StructuredRandomForestAccumulator {
 
     //spark.sparkContext.defaultParallelism
 
-    // Create a stream of text files dumped into the fake directory
+    // Create a stream of kafka topic dumped into the testSource topic
     val rawData = spark.readStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", "localhost:9092")
+      .format("kafka").
+      option("kafka.bootstrap.servers", "localhost:9092")
       .option("subscribe", "testSource")
       .option("startingOffsets", "earliest")
       .load()
       .selectExpr("CAST(value AS STRING)")
-    //.option("includeHeaders", "true")
     //option("minPartitions",10)
 
     // For conversion to DataSet to row-byte
-    implicit val encoder: Encoder[Data] = org.apache.spark.sql.Encoders.product[Data]
+    implicit val encoder: Encoder[InputData] = org.apache.spark.sql.Encoders.product[InputData]
     val structuredData = rawData.flatMap{
       line: Row =>
-        val time = new Timestamp(System.currentTimeMillis()) // TimeStamp
-        val fields = line.getString(0).trim.split(",")
-        val rand = scala.util.Random
 
-        // Partition between build and test examples
-        if (fields(1).toInt == 47){
-          val list = new java.util.ArrayList[Data]()
-          var newTime = time
-          for (x <- 0 to 1){
-            list.add(Data(fields(0).toInt, fields(1).toInt, fields(2).toInt, fields(3).toInt, fields(4).toInt, x, fields(5).toDouble ,newTime))
-            newTime = newTime.clone().asInstanceOf[Timestamp]
-            newTime.setTime(newTime.getTime+60001)
-          }
-          list.toSeq
-        }
-        else{
-          // Sampling
-          // Poisson distribution with λ=6
-          // Do it as many times as the random forest tree's
-          //val poisson = new PoissonDistribution(6.0) , first way
-          //val poisson = new PoissonSampler(6.0) , poisson.sample , second way
-          //for(i 0 to numberOfTress){ if( poisson.sample > 0 ){ add tuple in i's tree} }
-          val person: Data = Data(fields(0).toInt, fields(1).toInt, fields(2).toInt, fields(3).toInt, fields(4).toInt, rand.nextInt(2), fields(5).toDouble ,time)
-          Seq(person)
-        }
+        val fields = line.getString(0).trim.split(",")
+        val data = line.getString(0).trim.split(",",6).dropRight(1).mkString(",")
+
+        // Up to number of trees of random forest
+        val list = new java.util.ArrayList[InputData]()
+        for (x <- 0 to 1){ list.add( InputData(data,fields(fields.length-1).toInt,x) ) }
+        list.toSeq
+
     }
+
+    // Test examples : set of attributes(5),keyTuple,idHT
+    // Train examples : set of attributes(5),keyTuple,idHT
 
     // Print schema
     structuredData.printSchema()
@@ -98,52 +65,52 @@ object StructuredRandomForestAccumulator {
     import spark.implicits._
 
     // FlatMapGroupsWithState
-    val result = structuredData
-      .repartition(2,col("randInt"))
-      .groupByKey(structuredData => structuredData.randInt)
-      .flatMapGroupsWithState[Node,OutputState](OutputMode.Update,GroupStateTimeout.ProcessingTimeTimeout){
+    //repartition(2,col("randInt"))
+    val result = structuredData.groupByKey(structuredData => structuredData.idHT).flatMapGroupsWithState[Node,OutputState](OutputMode.Update,GroupStateTimeout.ProcessingTimeTimeout){
 
-      case( randID: Int , data : Iterator[Data] , state:GroupState[Node]) =>
+      case( idHT: Int , data : Iterator[InputData] , state:GroupState[Node]) =>
 
         if(state.exists){
 
           val root = state.get.FindRoot(state.get)
           val listRes = new java.util.ArrayList[Int]()
-          val listID = new java.util.ArrayList[Double]()
-          val listTimestamp = new java.util.ArrayList[Timestamp]()
+          val listKeyTuple = new java.util.ArrayList[Int]()
+          //Get the random subset of attributes
 
           while(data.hasNext){
             val input = data.next()
-            val stringInput = new Array[String](5)
-            stringInput(0) = input.int1.toString
-            stringInput(1) = input.int2.toString
-            stringInput(2) = input.int3.toString
-            stringInput(3) = input.int4.toString
-            stringInput(4) = input.label.toString
+            val stringInput = input.data.split(",")
+
             breakable {
-              if (input.int2 == 47) {
-                println("Find label!!!")
+              // Testing examples
+              if (stringInput(1).toInt == 47) {
+                println("Find Test example!!!")
+                println("Input is :" + input)
                 listRes.add(state.get.FindRoot(state.get).TestHT(state.get.FindRoot(state.get), stringInput))
-                listID.add(input.keyData)
-                listTimestamp.add(input.timestamp)
-                println("Key is " + input.keyData)
-                println("Timestamp is " + input.timestamp)
+                listKeyTuple.add(input.keyTuple)
                 break
               }
-              else { root.UpdateHT(root, stringInput) }
+              // Training examples
+              else {
+                val poisson = new PoissonDistribution(6.0)
+                val valueOfPoisson = poisson.sample
+                // Repeat as many time as is the k-weight of Poisson distribution if condition is valid
+                if( valueOfPoisson > 0 ) { for(_ <- 0 to valueOfPoisson){ root.UpdateHT(root, stringInput) } }
+                // else test???
+              }
             }
           }
 
           state.update(root)
-          Iterator( OutputState(listID.toList,listRes.toList,listTimestamp.toList,randID) )
+          Iterator( OutputState(listKeyTuple.toList,listRes.toList,idHT) )
         }
         else{
 
           println("Initialize state-HT")
           val listRes = new java.util.ArrayList[Int]()
-          val listID = new java.util.ArrayList[Double]()
-          val listTest = new java.util.ArrayList[Data]()
-          val listTimestamp = new java.util.ArrayList[Timestamp]()
+          val listKeyTuple = new java.util.ArrayList[Int]()
+          val listTestTuple = new java.util.ArrayList[String]()
+          //Get the random subset of attributes
 
           // Initialize Hoeffding tree
           val root = new Node
@@ -152,44 +119,38 @@ object StructuredRandomForestAccumulator {
           // Parsing data
           while(data.hasNext){
             val input = data.next()
-            val stringInput = new Array[String](5)
-            stringInput(0) = input.int1.toString
-            stringInput(1) = input.int2.toString
-            stringInput(2) = input.int3.toString
-            stringInput(3) = input.int4.toString
-            stringInput(4) = input.label.toString
+            val stringInput = input.data.split(",")
+
             // Keep testing tuples
             breakable{
-              if (input.int2 == 47){
-                println("Find label on IS!!!")
-                println("Key is " + input.keyData)
-                println(input)
-                listID.add(input.keyData)
-                listTimestamp.add(input.timestamp)
-                listTest.add(input)
+              // Testing tuples
+              if (stringInput(1).toInt == 47){
+                println("Input is :" + input)
+                listKeyTuple.add(input.keyTuple)
+                listTestTuple.add(input.data)
                 break
               }
-              else{ root.UpdateHT(root, stringInput) }
+              // Training tuples
+              else{
+                val poisson = new PoissonDistribution(6.0)
+                val valueOfPoisson = poisson.sample
+                // Repeat as many time as is the k-weight of Poisson distribution if condition is valid
+                if( valueOfPoisson > 0 ) { for(_ <- 0 to valueOfPoisson){ root.UpdateHT(root, stringInput) } }
+                //else test???
+              }
             }
           }
           state.update(root)
 
-          //Founded test tuples
-          if(listID != null){
-            println("Find label on IS")
-            println("Size is "+listID.size())
-            for(i <- 0 until listID.size()){
-              val stringInput = new Array[String](5)
-              stringInput(0) = listTest.get(i).int1.toString
-              stringInput(1) = listTest.get(i).int2.toString
-              stringInput(2) = listTest.get(i).int3.toString
-              stringInput(3) = listTest.get(i).int4.toString
-              stringInput(4) = listTest.get(i).label.toString
-              listRes.add(root.FindRoot(root).TestHT(root,stringInput))
-            }
-            Iterator( OutputState(listID.toList,listRes.toList,listTimestamp.toList,randID) )
+          // Founded test tuples
+          if(listKeyTuple != null){
+            println("Size of listKeyTuple is "+listKeyTuple.size)
+            for(i <- 0 until listKeyTuple.size){ listRes.add(root.FindRoot(root).TestHT(root,listTestTuple.get(i).split(","))) }
+            Iterator( OutputState(listKeyTuple.toList,listRes.toList,idHT) )
           }
           else{ None.iterator }
+
+          //None.iterator
 
         }
 
@@ -199,47 +160,21 @@ object StructuredRandomForestAccumulator {
     val flatMapResult = result.filter(x => x != null).flatMap{
       result: OutputState =>
         val list = new java.util.ArrayList[Result]()
-        for (i <- result.listRes.indices) { list.add(Result(result.listID(i), result.listRes(i), result.listTimestamp(i), result.idHT)) }
+        for (i <- result.listRes.indices) { list.add(Result(result.listKeyTuple(i), result.listRes(i), result.idHT)) }
         list.toSeq
     }
 
-    // Groupby with watermark (tumbling or sliding window)
-    //val finalResult = flatMapResult.withWatermark("timestamp","1 seconds").groupBy(window(col("timestamp"),"2 minutes"),col("keyTuple")).count()
-    //val myUdaf = udaf(MyAggregate) , .agg(myUdaf($"res").name("Fraud-Detection"))
-
     // Print execution plan
-    //finalResult.explain("formatted")
-
-    // Write the result as String(on text file)
-    /*val finalResult = result.flatMap{
-      case (line: OutputState) =>
-        val str = line.listID.mkString(" ").concat(line.listRes.mkString(" ")).concat(line.total.toString)
-        Seq(str)
-    }.as[String]
-    val query = finalResult.writeStream.format("text").option("path", "result").queryName("TestStatefulOperator").start()
-    */
-
-    // Start the streaming query, dumping results to the console. Use "complete" output mode because we are aggregating( instead of "append" mode)
-    //val query = finalResult.writeStream.format("console").queryName("TestStatefulOperator").start()
+    //flatMapResult.explain("formatted")
 
     // Write on kafka topic-result
-    val kafkaResult = flatMapResult.map(flatMapResult => flatMapResult
-      .keyTuple
-      .toString.concat(",")
-      .concat(flatMapResult.res.toString)
-      .concat(",")
-      .concat(flatMapResult.timestamp.toString)
-      .concat(",")
-      .concat(flatMapResult.idT.toString))
-      .toDF("value")
+    val kafkaResult = flatMapResult.map(flatMapResult => flatMapResult.keyTuple.toString.concat(",").concat(flatMapResult.res.toString).concat(",").concat(flatMapResult.idT.toString)).toDF("value")
 
-    val query = kafkaResult.selectExpr("CAST(value AS STRING)")
-      .writeStream.outputMode("update")
-      .format("kafka")
-      .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("topic", "result")
-      .queryName("TestStatefulOperator")
-      .start()
+    // Start the streaming query, dumping results to the topic results.
+    val query = kafkaResult.selectExpr("CAST(value AS STRING)").writeStream.outputMode("update").format("kafka").option("kafka.bootstrap.servers", "localhost:9092").option("topic", "result").queryName("TestStatefulOperator").start()
+
+    // Only for testing!!!
+    //val query = kafkaResult.writeStream.outputMode("update").format("console").queryName("TestStatefulOperator").start()
 
     // Keep going until we're stopped
     query.awaitTermination()
