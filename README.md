@@ -16,3 +16,11 @@ system, we do fist the testing in order to update its tree the voting weight and
 7. **N-number of trees:** We have to add N as an input to the system in order to specify the number of trees.
 8. **Change the case class:** Transform the case class with String class. Anyway the hoeffding tree gets a string input. No reason to have a case class.
 9. **Finish the Power-Point presentation:**
+
+The execution plan which is broken into stages where things can be processed in parallel and do not have a shuffle involved 
+
+and then stages are broken down to tasks
+that are distributed to individual nodes on your cluster. 
+
+
+Licensed under the [MIT Licence](LICENSE).

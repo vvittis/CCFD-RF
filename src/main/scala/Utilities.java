@@ -1,5 +1,6 @@
 import java.util.Arrays;
 import java.util.LinkedList;
+import java.util.Random;
 
 
 public class Utilities {
@@ -66,5 +67,21 @@ public class Utilities {
 
     }
 
-
+    /**
+     *
+     * @param m = how many features I want the Hoeffding Tree to have
+     * @param Max = What is the range aka how many features I have to select from
+     */
+    public int[] ReservoirSampling(int m, int Max) {
+        Random rand = new Random();
+        int[] ans = new int[m];
+        for (int k = 0; k < m; ++k)
+            ans[k] = k;
+        for (int k = m; k < Max; ++k) {
+            int v = rand.nextInt(k + 1);
+            if (v < m) { ans[v] = k; }
+        }
+        Arrays.sort(ans);
+        return ans;
+    }
 }
