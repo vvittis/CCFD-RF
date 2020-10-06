@@ -1,6 +1,10 @@
+import java.io.Serializable;
 import java.util.*;
 
-public class Node {
+public class Node implements Serializable {
+
+    //implements Serializable
+    private static final long serialVersionUID=2L;
 
     // Variables node
     public Integer splitAttr;       // splitting attribute
@@ -16,9 +20,9 @@ public class Node {
     Node rightNode;                // rightNode
     Node parentNode;               // parentNode
     public int m_features;         // randomly selected subset of features
-    public int max_examples_seen;
-    public double delta;
-    public double tie_threshold;
+    public int max_examples_seen;  // the number of examples between checks for growth(n_min)
+    public double delta;           // one minus the desired probability of choosing the correct feature at any given node
+    public double tie_threshold;   // tie threshold between splitting values of selected features for split
 
     // left , >=
     // right , <
@@ -156,8 +160,7 @@ public class Node {
     /**
      * @param node For a given node
      * @return whether or not a given node is homogeneous or not
-     * <p>
-     * If there is a counter in other label which is not 0 then the given node is not homogeneous
+     * <p> If both of counters of labels are not equal to 0 then the given node is not homogeneous
      */
     public boolean CheckHomogeneity(Node node) {
         HashMap<Integer, Integer> labels_hash_map = node.getLabelCounts();
@@ -165,8 +168,11 @@ public class Node {
     }
 
     /**
-     * <p> This function is responsible for Creating the Hoeffding tree.
-     * In theory, it has to be placed when the (state.exits == false) in structured streaming</p>
+     * @param m_features randomly selected subset of features
+     * @param max_examples_seen the number of examples between checks for growth(n_min)
+     * @param delta one minus the desired probability of choosing the correct feature at any given node
+     * @param tie_threshold tie threshold between splitting values of selected features for split
+     * <p> This function is responsible for Creating the Hoeffding tree.</p>
      */
     public void CreateHT(int m_features, int max_examples_seen,double delta,double tie_threshold) {
         InitializeHashMapSamplesAndLabelCounts(m_features);
@@ -185,6 +191,11 @@ public class Node {
         this.tie_threshold = tie_threshold;
     }
 
+    /**
+     * @param node For a given node(root)
+     * @param sample An array of values of features which will be use for testing
+     *              <p> Traverse the tree using sample and return the label of node at which it ends </p>
+     */
     public int TestHT(Node node, String[] sample) {
         Node updatedNode = TraverseTree(node, sample);
         return updatedNode.getClassLabel(node);
@@ -213,20 +224,35 @@ public class Node {
      * @param node This function clears all the Hoeffding Tree. All it needs is the root
      */
     public void RemoveHT(Node node){
-        node.label = null;
-        node.information_gain = 0.0;
-        node.nmin = 0;
-        node.leftNode = null;
-        node.rightNode = null;
-        node.parentNode = null;
-        node.splitAttr = null;
-        node.splitValue = null;
-        node.setOfAttr = null;
-        node.label_List.clear();
-        node.samples.clear();
-        System.gc();
+
+        if( node == null ){ return; }
+        else{
+            RemoveHT(node.leftNode);
+            RemoveHT(node.rightNode);
+
+            node.label = null;
+            node.information_gain = 0.0;
+            node.nmin = 0;
+            node.leftNode = null;
+            node.rightNode = null;
+            node.parentNode = null;
+            node.splitAttr = null;
+            node.splitValue = null;
+            node.setOfAttr = null;
+            node.label_List.clear();
+            node.samples.clear();
+            node.m_features = 0;
+            node.max_examples_seen = 0;
+            node.delta = 0.0;
+            node.tie_threshold = 0.0;
+            System.gc();
+        }
     }
 
+    /**
+     * @param node For a given node
+     *             <p> Return the root of Hoeffding tree </p>
+     */
     public Node FindRoot(Node node) {
 
         if (node.parentNode == null) { return node; }
@@ -241,7 +267,7 @@ public class Node {
      * @param node For a given Node
      * @return Whether or not a node needs a split
      * The splitting condition is:
-     * If a have seen MAX_EXAMPLES_SEEN and the given node is not homogeneous
+     * If a have seen max_examples_seen and the given node is homogeneous
      */
     public boolean NeedForSplit(Node node) { return node.getNmin() >= node.max_examples_seen && CheckHomogeneity(node); }
     // Stop splitting based on setOfAttr or entropy of node(=0)
@@ -250,8 +276,7 @@ public class Node {
     /**
      * @param node   For a given node
      * @param sample An array of values of attributes aka sample
-     *               <p> It is responsible to update the tree. In theory it will be called if the (state.exists == true)
-     *               in structured streaming
+     *               <p> It is responsible to update the tree.
      *               Jobs:
      *               1. Checks whether or not a split is needed for that given node
      *               2. If not then traverse the tree and finds the node where the given example has to be inserted
@@ -290,7 +315,10 @@ public class Node {
     }
 
     /**
-     * @param node Finds the best attribute
+     * @param node For a given node
+     *             <p> It attempt to split the node </p>
+     *             <p> First, find the best attributes to split the node </p>
+     *             <p> Second,if the best attributes satisfy the condition(based on epsilon,tie_threshold) then became the splitting of node </p>
      */
     public void AttemptSplit(Node node) {
         double[][] G = FindTheBestAttribute(node); // informationGain,splitAttr,splitValue-row
@@ -341,8 +369,7 @@ public class Node {
             for (int j = 0; j < list.size(); j++) { val[j] = list.get(j); }
 
             // Calculate splitting value
-            Utilities util = new Utilities();
-            double[] splitValues = util.Quartiles(val);
+            double[] splitValues = Utilities.Quartiles(val);
 
             // Calculate informationGain of node for each value and kept the max
             if (i == 0) {
@@ -412,6 +439,11 @@ public class Node {
         return multiples;
     }
 
+    /**
+     * @param node For a given node
+     * @param sample An array of values of features which will be use for traverse the tree
+     * @return The label of node at which it ends
+     */
     public Node TraverseTree(Node node, String[] sample) {
 
         if (node.leftNode == null && node.rightNode == null) { return node; }
@@ -423,6 +455,11 @@ public class Node {
         }
     }
 
+    /**
+     * @param node For a given node
+     * @param values Correspond to informationGain,splitAttribute,splitValue for node
+     *               <p> It is responsible to split the node and create the left and right child-node </p>
+     */
     public void SplitFunction(Node node, double[] values) {
 
         // Generate nodes
@@ -474,6 +511,13 @@ public class Node {
 
     }
 
+    /**
+     * @param node For a given node
+     * @param splitAttr Splitting attribute
+     * @param splitValue Splitting value for splitAttr
+     *                    <p> Calculate the Information Gain based on on splitAttr and splitValue </p>
+     * @return Information Gain of node based on splitAttr and splitValue
+     */
     public double InformationGain(Node node, int splitAttr, double splitValue) {
 
         // Calculate count for label 0,1

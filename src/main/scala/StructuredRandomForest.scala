@@ -2,18 +2,20 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
 import org.apache.spark.sql.{Encoder, Row, SparkSession}
 import org.apache.commons.math3.distribution.PoissonDistribution
+import org.apache.spark.sql.functions.col
+
 import scala.collection.convert.ImplicitConversions.`collection AsScalaIterable`
 import scala.util.control.Breaks.{break, breakable}
 
-object StructuredRandomForestAccumulator {
+
+object StructuredRandomForest {
 
   // Case class
-  case class InputData(data: String, purposeId: Int, keyTuple: Int, idHT: Int)
+  case class InputData(data: String, purposeId: Int, keyTuple: Int, idHT: Int) extends Serializable
 
-  case class OutputState(listKeyTuple: List[Int], listRes: List[Int], listLabel: List[Int], listOfPurposeId : List[Int], weightTree:Double, idHT: Int)
+  case class OutputState(listKeyTuple: List[Int], listRes: List[Int], listLabel: List[Int], listOfPurposeId : List[Int], weightTree:Double, idHT: Int) extends Serializable
 
-  case class Result(keyTuple: Int, res: Int, label:Int, purposeId:Int, weightTree:Double, idT: Int)
-
+  case class Result(keyTuple: Int, res: Int, label:Int, purposeId:Int, weightTree:Double, idT: Int) extends Serializable
 
   def main(args: Array[String]): Unit = {
 
@@ -33,13 +35,12 @@ object StructuredRandomForestAccumulator {
     val rawData = spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("subscribe", "topic1")
+      .option("subscribe", "source11")
       .option("startingOffsets", "earliest")
+//      .option("minPartitions",10)
       .load()
       .selectExpr("CAST(value AS STRING)")
-    //option("minPartitions",10)
 
-    //rawData.writeStream.option("truncate", "false").format("console").start()
 
     // For conversion to DataSet to row-byte
     implicit val encoder: Encoder[InputData] = org.apache.spark.sql.Encoders.product[InputData]
@@ -55,8 +56,6 @@ object StructuredRandomForestAccumulator {
         list.toSeq
     }
 
-    //structuredData.writeStream.format("console").option("truncate", "false").start()
-
     // Test examples : set of attributes,purposeId=-5,keyTuple,idHT
     // Train examples : set of attributes,purposeId=5,keyTuple,idHT
     // Predict examples : set of attributes-label,purposeId=-10,keyTuple,idHT
@@ -65,11 +64,13 @@ object StructuredRandomForestAccumulator {
     structuredData.printSchema()
 
     import org.apache.spark.sql.{Encoder, Encoders}
-    implicit val NodeEncoder: Encoder[HoeffdingTree] = Encoders.kryo[HoeffdingTree]
+    implicit val HT_Encoder: Encoder[HoeffdingTree] = Encoders.kryo[HoeffdingTree]
     import spark.implicits._
 
+    //println(HT_Encoder.schema.fieldNames.mkString(","))
+
     // FlatMapGroupsWithState
-    //repartition(2,col("randInt"))
+
     val result = structuredData.groupByKey(structuredData => structuredData.idHT).flatMapGroupsWithState[HoeffdingTree, OutputState](OutputMode.Update, GroupStateTimeout.ProcessingTimeTimeout) {
 
       case (idHT: Int, data: Iterator[InputData], state: GroupState[HoeffdingTree]) =>
@@ -91,7 +92,7 @@ object StructuredRandomForestAccumulator {
 
             breakable {
 
-              // Testing and Predicted examples
+              // Testing and Predicted examples , test and keep "data" for both of them
               if (purposeId == -5 || purposeId == -10) {
                 println("Find Test or Predicted example!!!")
                 println("Input is :" + input)
@@ -147,10 +148,10 @@ object StructuredRandomForestAccumulator {
             val keyTuple = input.keyTuple
             val inputString = input.data.split(",")
 
-            // Keep testing tuples
+
             breakable {
 
-              // Testing and Predicted tuples
+              // Testing and Predicted tuples , keep "data" for both of them
               if (purposeId == -5 || purposeId == -10){
                 println("Input is :" + input)
                 listKeyTuple.add(keyTuple)
@@ -183,7 +184,7 @@ object StructuredRandomForestAccumulator {
           }
           state.update(hoeffding_tree)
 
-          // Founded testing and predicted tuples
+          // Founded testing and predicted tuples,test and keep the labels
           if (listKeyTuple != null) {
             println("Size of listKeyTuple is " + listKeyTuple.size)
             for (i <- 0 until listKeyTuple.size) {
@@ -193,11 +194,10 @@ object StructuredRandomForestAccumulator {
           }
           else None.iterator
 
-          //None.iterator
-
         }
 
     }
+//      .repartition(2,col("randInt"))
 
     // FlatMap on result
     val flatMapResult = result.filter(x => x != null).flatMap {
@@ -228,8 +228,8 @@ object StructuredRandomForestAccumulator {
       .writeStream.outputMode("update")
       .format("kafka")
       .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("topic", "result")
-      .queryName("TestStatefulOperator")
+      .option("topic", "sink11")
+      .queryName("RandomForest")
       .start()
 
     // Only for testing!!!
