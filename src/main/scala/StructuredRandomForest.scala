@@ -232,6 +232,7 @@ object StructuredRandomForest {
     // Keep going until we're stopped
     query.awaitTermination()
 
+
     spark.stop()
 
   }
