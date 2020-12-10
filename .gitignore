@@ -2,3 +2,5 @@
 project/
 target/
 checkpoint_saves/
+!sbt/project/
+!sbt/build.sbt/

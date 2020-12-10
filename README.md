@@ -9,7 +9,7 @@ There are 3 options if you want to run CCFD-RF
 3. **Option 3:** Run job  _**in SoftNet cluster**_, reading from  _**HDFS**_ and writing to  _**HDFS**_
 
 **Notes:** <br>
-_We propose to run the project with _**Option 2**_ because easier to test:_ <br>
+_We propose to run the project with _**Option 2**_ because it is easier to test:_ <br>
 _The attached code is written in Option 2_
 
 ## Configure SparkSession
@@ -55,6 +55,14 @@ In line 35-43 [StructuredRandomForest]: Read from Source
           .load()
           .selectExpr("CAST(value AS STRING)")
 ```
+Note: of course you have to execute:
+<pre>
+Open 2 command line windows and cd on “C:\kafka_2.12-2.3.0”
+1st window
+bin\windows\zookeeper-server-start.bat config\zookeeper.properties
+2nd window
+bin\windows\kafka-server-start.bat config\server.properties
+</pre>
 ### Option 3 Read from an HDFS file:
 <pre>
 In line 35-43 [StructuredRandomForest]: Read from Source
@@ -70,9 +78,15 @@ _Note:_ **/user/vvittis/numbers is a path to a HDFS folder**
 In line 212 [StructuredRandomForest]: Write to Console
 </pre>
 ```scala
-  val query = kafkaResult.writeStream.outputMode("update").option("truncate", "false").format("console").queryName("TestStatefulOperator").start()
+  val query = kafkaResult
+      .writeStream
+      .outputMode("update")
+      .option("truncate", "false")
+      .format("console")
+      .queryName("TestStatefulOperator")
+      .start()
 ```
-### Option 2 Write from kafka:
+### Option 2 Write to kafka:
 <pre>
 In line 215-22 [StructuredRandomForest]: Write to kafka sink
 </pre>
@@ -86,13 +100,14 @@ In line 215-22 [StructuredRandomForest]: Write to kafka sink
           .queryName("RandomForest")
           .start()
 ```
-### Option 3 Read from an HDFS file:
+### Option 3 Write to HDFS file:
 <pre>
-In line 35-43 [StructuredRandomForest]: Read from Source
+In line 35-43 [StructuredRandomForest]: Write to HDFS sink
 </pre>
 ```scala
-        val rawData = spark.writeStream
-            .output("append")
+        val query = kafkaResult
+            .writeStream
+            .outputMode("append")
             .format("csv")
             .option("path","/user/vvittis/results/")          
             .queryName("RandomForest")
@@ -117,6 +132,7 @@ Step 4: Go to src > main > scala > StructuredRandomForest.scala and click Run
 
 
 ### In Cluster 
+You will find in sbt 
 * **A typical Cluster showing that each executor takes one Hoeffding Tree of the Random Forest:**
 * This test executed with 10 executors and 10 HT.
 
