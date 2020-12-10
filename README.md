@@ -104,8 +104,10 @@ Step 3: Click the build button or Build > Build Project
 Step 4: Go to src > main > scala > StructuredRandomForest.scala and click Run
 </pre>
 * **A typical Console showing the state:**
+
 ![alt text](images_readme/Job1_locally_run_showing_init_trees.JPG)
 * **A typical Console showing the output:**
+
 ![alt text](images_readme/Job1_locally_run_showing_some_typical_results.PNG)
 
 
