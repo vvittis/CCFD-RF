@@ -4,10 +4,13 @@ This is a project for Credit Card Fraudulent Detection with Random Forest using 
 
 ## In the code:
 There are 3 options if you want to run CCFD-RF 
-1. **Option 1:** Run job locally, reading from a file and writing to console
-2. **Option 2:** Run job locally, reading from a kafka source and writing to a kafka sink
-3. **Option 3:** Run job in SoftNet cluster, reading from HDFS and writing to HDFS
+1. **Option 1:** Run job  _**locally**_, reading from a _**file**_ and writing to  _**console**_
+2. **Option 2:** Run job  _**locally**_, reading from a  _**kafka source**_ and writing to a  _**kafka sink**_
+3. **Option 3:** Run job  _**in SoftNet cluster**_, reading from  _**HDFS**_ and writing to  _**HDFS**_
 
+**Notes:** <br>
+_We propose to run the project with _**Option 2**_ because easier to test:_ <br>
+_The attached code is written in Option 2_
 ### Option 1 & 2 Run locally:
 <pre>
 In line 25-30 [StructuredRandomForest]: Configure SparkSession variable
@@ -29,14 +32,18 @@ In line 25-30 [StructuredRandomForest]: Configure SparkSession variable
        .config("spark.sql.streaming.checkpointLocation", "/user/vvittis")
        .getOrCreate()
 ```
+
+### Option 1 Read from file:
 <pre>
 In line 35-43 [StructuredRandomForest]: Read from Source
 </pre>
-### Option 1:
 ```scala
  val rawData = spark.readStream.text("dataset_source/")
 ```
-### Option 2:
+### Option 2 Read from kafka:
+<pre>
+In line 35-43 [StructuredRandomForest]: Read from Source
+</pre>
 ```scala
  val rawData = spark.readStream
           .format("kafka")
@@ -46,29 +53,34 @@ In line 35-43 [StructuredRandomForest]: Read from Source
           .load()
           .selectExpr("CAST(value AS STRING)")
 ```
-### Option 3:
+### Option 3 Read from an HDFS file:
+<pre>
+In line 35-43 [StructuredRandomForest]: Read from Source
+</pre>
 ```scala
- val rawData = spark.readStream
-          .format("kafka")
-          .option("kafka.bootstrap.servers", "localhost:9092")
-          .option("subscribe", "testSource")
-          .option("startingOffsets", "earliest")
-          .load()
-          .selectExpr("CAST(value AS STRING)")
+val rawData = spark.readStream.text("/user/vvittis/numbers")
 ```
-## RUN the project. 
+_Note:_ **/user/vvittis/numbers is a path to a HDFS folder**
 
-### If you have Intellij 
+## RUN the project. 
+### In Intellij 
 <pre>
 Step 1: Clone CCFD-RF File > New > Project From Version Control... 
 Step 2: In the URL: copy https://github.com/vvittis/CCFD-RF.git 
         In the Directory: Add your preferred directory
-Step 3: Go to src > main > scala > StructuredRandomForest.scala and click Run
+Step 3: Click the build button or Build > Build Project
+Step 4: Go to src > main > scala > StructuredRandomForest.scala and click Run
 </pre>
-#### A typical Console showing the state: 
+* **A typical Console showing the state:**
 ![alt text](images_readme/Job1_locally_run_showing_init_trees.JPG)
-#### A typical Console showing the output: 
+* **A typical Console showing the output:**
 ![alt text](images_readme/Job1_locally_run_showing_some_typical_results.PNG)
 
+
+### In Cluster 
+* **A typical Cluster showing that each executor takes one Hoeffding Tree of the Random Forest:**
+* This test executed with 10 executors and 10 HT.
+![alt text](images_readme/cluster.PNG)
+ 
 Licensed under the [MIT Licence](LICENSE).
 
