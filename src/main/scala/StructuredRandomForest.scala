@@ -37,7 +37,7 @@ object StructuredRandomForest {
       .option("kafka.bootstrap.servers", "localhost:9092")
       .option("subscribe", "source11")
       .option("startingOffsets", "earliest")
-//      .option("minPartitions",10)
+      //      .option("minPartitions",10)
       .load()
       .selectExpr("CAST(value AS STRING)")
 
@@ -197,7 +197,7 @@ object StructuredRandomForest {
         }
 
     }
-//      .repartition(2,col("randInt"))
+    //      .repartition(2,col("randInt"))
 
     // FlatMap on result
     val flatMapResult = result.filter(x => x != null).flatMap {

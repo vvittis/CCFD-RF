@@ -160,7 +160,15 @@ public class Node implements Serializable {
     /**
      * @param node For a given node
      * @return whether or not a given node is homogeneous or not
-     * <p> If both of counters of labels are not equal to 0 then the given node is not homogeneous
+     * <p> If both counters of labels are not equal to 0 then the given node is not homogeneous
+     *      &&
+     *     class2   class1
+     *      0   AND 0 = 0 none from each class
+     *      0   AND 1 = 0 only from class2  -> homogeneous
+     *      1   AND 0 = 0 only from class1  -> homogeneous
+     *      1   AND 1 = 1 from both classes -> not homogeneous
+     *
+     * </p>
      */
     public boolean CheckHomogeneity(Node node) {
         HashMap<Integer, Integer> labels_hash_map = node.getLabelCounts();
