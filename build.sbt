@@ -1,4 +1,4 @@
-name := "CCFD_RF_Structured_Streaming"
+name := "CCFD_RF"
 
 version := "0.1"
 

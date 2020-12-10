@@ -114,8 +114,8 @@ public class HoeffdingTree implements Serializable {
      * <p> Print the selected features of tree </p>
      */
     public void print_m_features() {
-        System.out.println();
-        for (int m_feature : this.m_features) { System.out.print(m_feature); }
+        System.out.print("Selected Features: ");
+        for (int m_feature : this.m_features) { System.out.print(m_feature+" "); }
         System.out.println();
     }
 
