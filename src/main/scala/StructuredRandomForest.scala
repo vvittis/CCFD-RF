@@ -38,16 +38,17 @@ object StructuredRandomForest {
     //      .getOrCreate()
 
     /*Option 1: Run Job1 locally and read from local folder*/
-    val rawData = spark.readStream.text("dataset_source/")
+//    val rawData = spark.readStream.text("dataset_source/")
 
     /* Option 2: Run Job1 locally and read from kafka source
     Create a stream of kafka topic dumped into the testSource topic*/
-    //      .format("kafka")
-    //      .option("kafka.bootstrap.servers", "localhost:9092")
-    //      .option("subscribe", "testSource")
-    //      .option("startingOffsets", "earliest")
-    //      .load()
-    //      .selectExpr("CAST(value AS STRING)")
+    val rawData = spark.readStream
+          .format("kafka")
+          .option("kafka.bootstrap.servers", "localhost:9092")
+          .option("subscribe", "testSource")
+          .option("startingOffsets", "earliest")
+          .load()
+          .selectExpr("CAST(value AS STRING)")
 
 
     // For conversion to DataSet to raw-byte
@@ -209,19 +210,25 @@ object StructuredRandomForest {
     // kafkaResult : keyTuple,res,label,purposeId,idT,weightTree
 
     /*  Option 1: Run Job1 locally. See the results on console. With option 1 you can NOT connect Job1 and Job2, this option serves the purpose of testing  */
-    val query = kafkaResult.writeStream.outputMode("update").option("truncate", "false").format("console").queryName("TestStatefulOperator").start()
+//    val query = kafkaResult.writeStream.outputMode("update").option("truncate", "false").format("console").queryName("TestStatefulOperator").start()
 
     /* Option 2: Run Job1 locally. Write the results to kafka sink. This options CREATES a kafka topic where Job2 can read from.*/
-    //    val query = kafkaResult
-    //      .selectExpr("CAST(value AS STRING)")
-    //      .writeStream.outputMode("update")
-    //      .format("kafka")
-    //      .option("kafka.bootstrap.servers", "localhost:9092")
-    //      .option("topic", "testSink")
-    //      .queryName("RandomForest")
-    //      .start()
+        val query = kafkaResult
+          .selectExpr("CAST(value AS STRING)")
+          .writeStream.outputMode("update")
+          .format("kafka")
+          .option("kafka.bootstrap.servers", "localhost:9092")
+          .option("topic", "testSink")
+          .queryName("RandomForest")
+          .start()
 
-
+//    val query = kafkaResult
+//      .writeStream
+//      .outputMode("append")
+//      .format("csv")
+//      .option("path","/user/vvittis/results/")
+//      .queryName("RandomForest")
+//      .start()
     // Keep going until we're stopped
     query.awaitTermination()
 

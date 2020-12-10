@@ -102,7 +102,7 @@ In line 215-22 [StructuredRandomForest]: Write to kafka sink
 ```
 ### Option 3 Write to HDFS file:
 <pre>
-In line 35-43 [StructuredRandomForest]: Write to HDFS sink
+In line 224-230 [StructuredRandomForest]: Write to HDFS sink
 </pre>
 ```scala
         val query = kafkaResult
