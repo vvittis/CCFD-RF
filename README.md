@@ -80,6 +80,7 @@ Step 4: Go to src > main > scala > StructuredRandomForest.scala and click Run
 ### In Cluster 
 * **A typical Cluster showing that each executor takes one Hoeffding Tree of the Random Forest:**
 * This test executed with 10 executors and 10 HT.
+
 ![alt text](images_readme/cluster.PNG)
  
 Licensed under the [MIT Licence](LICENSE).
