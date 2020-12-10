@@ -11,6 +11,8 @@ There are 3 options if you want to run CCFD-RF
 **Notes:** <br>
 _We propose to run the project with _**Option 2**_ because easier to test:_ <br>
 _The attached code is written in Option 2_
+
+## Configure SparkSession
 ### Option 1 & 2 Run locally:
 <pre>
 In line 25-30 [StructuredRandomForest]: Configure SparkSession variable
@@ -32,7 +34,7 @@ In line 25-30 [StructuredRandomForest]: Configure SparkSession variable
        .config("spark.sql.streaming.checkpointLocation", "/user/vvittis")
        .getOrCreate()
 ```
-
+## Read
 ### Option 1 Read from file:
 <pre>
 In line 35-43 [StructuredRandomForest]: Read from Source
@@ -62,6 +64,36 @@ val rawData = spark.readStream.text("/user/vvittis/numbers")
 ```
 _Note:_ **/user/vvittis/numbers is a path to a HDFS folder**
 
+## Write
+### Option 1 Write to console:
+<pre>
+In line 212 [StructuredRandomForest]: Write to Console
+</pre>
+```scala
+  val query = kafkaResult.writeStream.outputMode("update").option("truncate", "false").format("console").queryName("TestStatefulOperator").start()
+```
+### Option 2 Write from kafka:
+<pre>
+In line 215-22 [StructuredRandomForest]: Write to kafka sink
+</pre>
+```scala
+        val query = kafkaResult
+          .selectExpr("CAST(value AS STRING)")
+          .writeStream.outputMode("update")
+          .format("kafka")
+          .option("kafka.bootstrap.servers", "localhost:9092")
+          .option("topic", "testSink")
+          .queryName("RandomForest")
+          .start()
+```
+### Option 3 Read from an HDFS file:
+<pre>
+In line 35-43 [StructuredRandomForest]: Read from Source
+</pre>
+```scala
+val rawData = spark.writeStream.text("/user/vvittis/results")
+```
+_Note:_ **/user/vvittis/results is a path to a HDFS folder**
 ## RUN the project. 
 ### In Intellij 
 <pre>
