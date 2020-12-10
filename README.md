@@ -88,7 +88,7 @@ In line 212 [StructuredRandomForest]: Write to Console
 ```
 ### Option 2 Write to kafka:
 <pre>
-In line 215-22 [StructuredRandomForest]: Write to kafka sink
+In line 215-230 [StructuredRandomForest]: Write to kafka sink
 </pre>
 ```scala
         val query = kafkaResult
