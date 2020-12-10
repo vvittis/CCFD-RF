@@ -132,7 +132,18 @@ Step 4: Go to src > main > scala > StructuredRandomForest.scala and click Run
 
 
 ### In Cluster 
-You will find in sbt 
+You will find the [sbt](sbt) folder 
+<pre>
+Step 1: Run sbt assembly and create a .jar file
+Step 2: Run
+        ./bin/spark-submit 
+        --class StructuredRandomForest 
+        --master yarn-client 
+        --num-executors 10 
+        --driver-memory 512m 
+        --executor-memory 512m 
+        --executor-cores 1 /home/vvittis/StructuredRandomForest-assembly-0.1.jar
+</pre>
 * **A typical Cluster showing that each executor takes one Hoeffding Tree of the Random Forest:**
 * This test executed with 10 executors and 10 HT.
 
