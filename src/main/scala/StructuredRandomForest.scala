@@ -30,6 +30,13 @@ object StructuredRandomForest {
       .config("spark.sql.streaming.checkpointLocation", "checkpoint_saves/")
       .getOrCreate()
 
+    /* Option 3: Run on the cluster*/
+    //    val spark = SparkSession.builder()
+    //      .appName("SparkStructuredRandomForest")
+    //      //.master("local[*]")
+    //      .config("spark.sql.streaming.checkpointLocation", "/user/vvittis")
+    //      .getOrCreate()
+
     /*Option 1: Run Job1 locally and read from local folder*/
     val rawData = spark.readStream.text("dataset_source/")
 
@@ -75,7 +82,7 @@ object StructuredRandomForest {
       case (idHT: Int, data: Iterator[InputData], state: GroupState[HoeffdingTree]) =>
 
         if (state.exists) {
-          println("State exists HT-"+idHT)
+          println("State exists HT-" + idHT)
           val hoeffding_tree = state.get
           val listRes = new java.util.ArrayList[Int]()
           val listKeyTuple = new java.util.ArrayList[Int]()
@@ -123,7 +130,7 @@ object StructuredRandomForest {
         }
         else {
 
-          println("Initialize state-HT"+idHT)
+          println("Initialize state-HT" + idHT)
           val listRes = new java.util.ArrayList[Int]()
           val listKeyTuple = new java.util.ArrayList[Int]()
           val listPurposeId = new java.util.ArrayList[Int]()
@@ -191,28 +198,28 @@ object StructuredRandomForest {
 
     /* Write on kafka topic-result */
     val kafkaResult = flatMapResult.map(flatMapResult =>
-      flatMapResult.keyTuple.toString                                  //  key of tuple
-        .concat(",").concat(flatMapResult.res.toString)           //  result of test
-        .concat(",").concat(flatMapResult.label.toString)         //  label of tuple(only for testing tuples)
-        .concat(",").concat(flatMapResult.purposeId.toString)     //  purposeId of tuple
-        .concat(",").concat(flatMapResult.idT.toString)           //  id of tree
-        .concat(",").concat(flatMapResult.weightTree.toString))   //  weight of tree
+      flatMapResult.keyTuple.toString //  key of tuple
+        .concat(",").concat(flatMapResult.res.toString) //  result of test
+        .concat(",").concat(flatMapResult.label.toString) //  label of tuple(only for testing tuples)
+        .concat(",").concat(flatMapResult.purposeId.toString) //  purposeId of tuple
+        .concat(",").concat(flatMapResult.idT.toString) //  id of tree
+        .concat(",").concat(flatMapResult.weightTree.toString)) //  weight of tree
       .toDF("value")
 
     // kafkaResult : keyTuple,res,label,purposeId,idT,weightTree
 
     /*  Option 1: Run Job1 locally. See the results on console. With option 1 you can NOT connect Job1 and Job2, this option serves the purpose of testing  */
-    val query = kafkaResult.writeStream.outputMode("update") .option("truncate", "false").format("console").queryName("TestStatefulOperator").start()
+    val query = kafkaResult.writeStream.outputMode("update").option("truncate", "false").format("console").queryName("TestStatefulOperator").start()
 
     /* Option 2: Run Job1 locally. Write the results to kafka sink. This options CREATES a kafka topic where Job2 can read from.*/
-//    val query = kafkaResult
-//      .selectExpr("CAST(value AS STRING)")
-//      .writeStream.outputMode("update")
-//      .format("kafka")
-//      .option("kafka.bootstrap.servers", "localhost:9092")
-//      .option("topic", "testSink")
-//      .queryName("RandomForest")
-//      .start()
+    //    val query = kafkaResult
+    //      .selectExpr("CAST(value AS STRING)")
+    //      .writeStream.outputMode("update")
+    //      .format("kafka")
+    //      .option("kafka.bootstrap.servers", "localhost:9092")
+    //      .option("topic", "testSink")
+    //      .queryName("RandomForest")
+    //      .start()
 
 
     // Keep going until we're stopped
