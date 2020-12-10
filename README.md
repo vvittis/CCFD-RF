@@ -91,7 +91,12 @@ In line 215-22 [StructuredRandomForest]: Write to kafka sink
 In line 35-43 [StructuredRandomForest]: Read from Source
 </pre>
 ```scala
-val rawData = spark.writeStream.text("/user/vvittis/results")
+        val rawData = spark.writeStream
+            .output("append")
+            .format("csv")
+            .option("path","/user/vvittis/results/")          
+            .queryName("RandomForest")
+            .start()
 ```
 _Note:_ **/user/vvittis/results is a path to a HDFS folder**
 ## RUN the project. 
