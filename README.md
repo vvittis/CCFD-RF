@@ -1,6 +1,6 @@
 # [CCFD-RF] Credit Card Fraudulent Detection with Random Forest
 
-This is a project for Credit Card Fraudulent Detection with Random Forest using Spark Structured Streaming
+This is a project for Credit Card Fraudulent Detection with Random Forest using Spark Structured Streaming 
 
 ## In the code:
 There are 3 options if you want to run CCFD-RF 
