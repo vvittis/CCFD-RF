@@ -2,6 +2,10 @@
 
 This is a project for Credit Card Fraudulent Detection with Random Forest using Spark Structured Streaming 
 
+
+![http://url/to/img.png](https://github.com/vvittis/CCFD-RF/blob/master/images_readme/Kafka%20Source.png)
+
+
 ## In the code:
 There are 3 options if you want to run CCFD-RF 
 1. **Option 1:** Run job  _**locally**_, reading from a _**file**_ and writing to  _**console**_
