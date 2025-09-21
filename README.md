@@ -1,5 +1,3 @@
-# [CCFD-RF] Credit Card Fraudulent Detection with Random Forest
-
 # CCFD-RF — Streaming Credit-Card Fraud Detection (Spark + Kafka + Random Forest)
 
 CCFD-RF is a *near-real-time* fraud-detection pipeline that ingests transactions from **Kafka**, scores them with a **Random Forest** model on **Apache Spark Structured Streaming** (Java), and emits alerts/decisions to downstream sinks. It’s built for *class-imbalanced*, high-volume streams and emphasizes **low overhead online updates** and clean integration with the Spark ecosystem.
