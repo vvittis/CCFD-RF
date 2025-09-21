@@ -1,6 +1,22 @@
 # [CCFD-RF] Credit Card Fraudulent Detection with Random Forest
 
-This is a project for Credit Card Fraudulent Detection with Random Forest using Spark Structured Streaming 
+# CCFD-RF — Streaming Credit-Card Fraud Detection (Spark + Kafka + Random Forest)
+
+CCFD-RF is a *near-real-time* fraud-detection pipeline that ingests transactions from **Kafka**, scores them with a **Random Forest** model on **Apache Spark Structured Streaming** (Java), and emits alerts/decisions to downstream sinks. It’s built for *class-imbalanced*, high-volume streams and emphasizes **low overhead online updates** and clean integration with the Spark ecosystem.
+
+**Why:** catch fraudulent transactions quickly without pausing the firehose.  
+**How:** Kafka → Spark Structured Streaming → feature parse/normalize → RF scoring → (optional) rules/thresholding → sink.
+
+**Key features**
+- **End-to-end streaming**: Kafka source, Structured Streaming processing, pluggable sinks (console/files/topic/DB).  [oai_citation:0‡Apache Spark](https://spark.apache.org/docs/3.5.1/structured-streaming-kafka-integration.html?utm_source=chatgpt.com)  
+- **Random Forest classifier** for robust, fast scoring in production-like streams.  
+- **Imbalance-aware**: utilities for class weights / threshold tuning and PR-AUC reporting.  
+- **Cluster-ready Java project**: runs on Spark 3.x; straightforward `spark-submit` packaging.  
+- **Modular stages**: parsing, feature engineering, model loading, scoring, and alert formatting are separable for easy swaps.
+
+**Tech stack**
+- **Java** + **Apache Spark Structured Streaming** + **Kafka** (0.10+ integration).  [oai_citation:1‡Apache Spark](https://spark.apache.org/docs/3.5.1/structured-streaming-kafka-integration.html?utm_source=chatgpt.com)
+- Random Forest (Spark MLlib or compatible model artifact).
 
 
 ![http://url/to/img.png](https://github.com/vvittis/CCFD-RF/blob/master/images_readme/Kafka%20Source.png)
